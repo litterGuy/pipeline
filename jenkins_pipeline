@@ -1,0 +1,42 @@
+pipeline {
+   //agent any
+   agent {
+       label 'master'
+   }
+    tools {
+        maven 'maven3.6.3'
+        jdk 'jdk8'
+    }
+  stages{
+    //代码获取
+    stage('Preparation') { // for display purposes
+      steps{
+        git branch: 'master',
+        credentialsId: '99cb0bd5-af32-4a9f-a26e-70418e4c2811',
+        url: 'http://code.9885.net/changli/rzg-integrated.git'
+      }
+    }
+    //构建
+    stage('Build') {
+       steps {
+        sh "mvn -Dmaven.test.skip=true clean package"
+       }
+    }
+
+    //移动
+    stage('MV') {
+      steps {
+        sh "mv ${WORKSPACE}/ruoyi-modules/ruoyi-gen/target/ruoyi-modules-gen.jar /home/javaApplication/pipeline_test/"
+      }
+    }
+
+
+    //运行JAR包
+    stage('Run') {
+      steps{
+          sh "if (ps -ef| grep java|grep ruoyi-modules-gen )then (ps -ef| grep java|grep ruoyi-modules-gen| awk '{print \$2}'|xargs kill -9) fi"
+          sh " JENKINS_NODE_COOKIE=dontKillMe  nohup java -jar /home/javaApplication/pipeline_test/ruoyi-modules-gen.jar >> /home/javaApplication/pipeline_test/ruoyi-modules-gen.log 2>&1 &"
+      }
+    }
+  }
+}
