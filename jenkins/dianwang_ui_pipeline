@@ -1,0 +1,53 @@
+pipeline {
+   //agent any
+   agent {
+       label 'master'
+   }
+   tools {
+       nodejs "nodejs16.13.0"
+   }
+
+  parameters {
+    string defaultValue: 'http://code.9885.net/ghost-axe/power-audit-system.git', 
+             description: '', 
+             name: 'git_project_url', 
+             trim: false
+
+    gitParameter branch: '', branchFilter: 'origin.*/(.*)', defaultValue: 'master', 
+    description: '代码分支', name: 'git_branch', quickFilterEnabled: false, selectedValue: 'NONE', 
+    sortMode: 'NONE', tagFilter: '*', type: 'PT_BRANCH_TAG', 
+    useRepository: 'http://code.9885.net/ghost-axe/power-audit-system.git'
+  }
+
+  stages{
+    //代码获取
+    stage('Checkout') { // for display purposes
+      steps{
+        script{
+            checkout([$class: 'GitSCM', branches: [[name: "${git_branch}"]], 
+                      doGenerateSubmoduleConfigurations: false, 
+                      extensions: [], 
+                      submoduleCfg: [], 
+                      userRemoteConfigs: [[credentialsId: '9cbebbf8-986a-40e4-b7c7-8f0e19288efe', 
+                      url: "${git_project_url}"]]])
+        }
+      }
+    }
+
+    //上传
+    stage('Upload') {
+      steps {
+        sh "ssh root@192.168.1.243 'rm -rf /home/vue-ui/dianwang/*'"
+        sh "scp -r ${WORKSPACE}/dist/* root@192.168.1.243:/home/vue-ui/dianwang/"
+      }
+    }
+
+
+    //运行
+    stage('Run') {
+      steps{
+          sh "ssh root@192.168.1.243 'systemctl restart nginx'"
+      }
+    }
+  }
+}

@@ -1,0 +1,52 @@
+pipeline {
+   //agent any
+   agent {
+       label 'master'
+   }
+   tools {
+       maven 'maven3'
+       jdk 'jdk8'
+   }
+
+parameters {
+  gitParameter branch: '', branchFilter: 'origin.*/(.*)', defaultValue: 'master', description: '代码分支', 
+  name: 'git_branch', quickFilterEnabled: false, selectedValue: 'DEFAULT', sortMode: 'NONE', tagFilter: '*', 
+  type: 'PT_BRANCH_TAG', useRepository: 'http://code.9885.net/wangzengwei/dianwang-platform.git'
+}
+
+  stages{
+    //代码获取
+    stage('Checkout') { // for display purposes
+      steps{
+        script{
+            checkout([$class: 'GitSCM', branches: [[name: "${git_branch}"]], 
+                      doGenerateSubmoduleConfigurations: false, 
+                      extensions: [], 
+                      submoduleCfg: [], 
+                      userRemoteConfigs: [[credentialsId: '9cbebbf8-986a-40e4-b7c7-8f0e19288efe', 
+                      url: "${git_project_url}"]]])
+        }
+      }
+    }
+    //构建
+    stage('Build') {
+       steps {
+        sh "mvn -Dmaven.test.skip=true clean package"
+       }
+    }
+    //移动
+    stage('Upload') {
+      steps {
+        sh "scp ${WORKSPACE}/app/target/app-2.4.jar root@192.168.1.243:/home/java/dianwang/app-2.4.jar"
+        sh "ssh root@192.168.1.243 'mv -f /home/java/dianwang/app-2.4.jar /home/java/dianwang/platform.jar'"
+      }
+    }
+
+    //运行JAR包
+    stage('Run') {
+      steps{
+          sh "ssh root@192.168.1.243 'source /etc/profile;cd /home/java/dianwang;./run.sh restart'"
+      }
+    }
+  }
+}

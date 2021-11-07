@@ -1,0 +1,62 @@
+pipeline {
+   //agent any
+   agent {
+       label 'master'
+   }
+    tools {
+        maven 'maven3'
+        jdk 'jdk8'
+    }
+
+  parameters {
+    gitParameter branch: '', branchFilter: 'origin.*/(.*)', defaultValue: 'master', 
+    description: '代码分支', name: 'git_branch', quickFilterEnabled: false, selectedValue: 'NONE', 
+    sortMode: 'NONE', tagFilter: '*', type: 'PT_BRANCH_TAG', 
+    useRepository: 'https://codeup.aliyun.com/6130405103e1c17d57a66685/rzg-zhoudao.git'
+  }
+
+  stages{
+    //代码获取
+    stage('Checkout') { // for display purposes
+      steps{
+        script{
+            checkout([$class: 'GitSCM', branches: [[name: "${git_branch}"]], 
+                      doGenerateSubmoduleConfigurations: false, 
+                      extensions: [], 
+                      submoduleCfg: [], 
+                      userRemoteConfigs: [[credentialsId: '7e467fee-f928-4409-833c-7609d0391160', 
+                      url: "${git_project_url}"]]])
+        }
+      }
+    }
+    //构建
+    stage('Build') {
+       steps {
+        sh "mvn -Dmaven.test.skip=true clean package"
+       }
+    }
+    //移动
+    stage('Upload') {
+      steps {
+        script{
+          echo 'begin upload jar：${modules} and env' + env.modules
+          if (env.modules == 'gateway' || env.modules == 'auth') {
+              sh "scp ${WORKSPACE}/rzg-zhoudao-${modules}/target/rzg-zhoudao-${modules}.jar root@192.168.1.243:/home/java/zhoudao/upload/rzg-zhoudao-${modules}.jar"
+          } else if (env.modules == 'file'|| env.modules == 'gen'|| env.modules == 'job'|| env.modules == 'system'){
+              sh "scp ${WORKSPACE}/rzg-zhoudao-modules/rzg-zhoudao-${modules}/target/rzg-zhoudao-modules-${modules}.jar root@192.168.1.243:/home/java/zhoudao/upload/rzg-zhoudao-${modules}.jar"
+          }else{
+              sh "scp ${WORKSPACE}/rzg-zhoudao-modules/rzg-zhoudao-${modules}/target/rzg-zhoudao-${modules}.jar root@192.168.1.243:/home/java/zhoudao/upload/rzg-zhoudao-${modules}.jar"
+          }
+        }
+        sh "ssh root@192.168.1.243 'mv -f /home/java/zhoudao/upload/rzg-zhoudao-${modules}.jar /home/java/zhoudao/rzg-zhoudao-${modules}/rzg-zhoudao-${modules}.jar'"
+      }
+    }
+
+    //运行JAR包
+    stage('Run') {
+      steps{
+          sh "ssh root@192.168.1.243 'source /etc/profile;cd /home/java/zhoudao/rzg-zhoudao-${modules};./run.sh restart'"
+      }
+    }
+  }
+}
